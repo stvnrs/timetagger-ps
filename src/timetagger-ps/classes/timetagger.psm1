@@ -15,7 +15,7 @@ class TimeTaggerWrapper {
             $QueryString += "$_=$($QueryParams[$_])"
         }
     
-        Write-verbose "QueryString: $QueryString" -Verbose
+        Write-verbose "QueryString: $QueryString"
     
         $Uri = "$($this.TimeTaggerApiUri)/$EndPoint"
     
@@ -23,7 +23,7 @@ class TimeTaggerWrapper {
             $Uri += "?$QueryString"
         }
     
-        Write-verbose "Uri: $Uri" -Verbose
+        Write-verbose "Uri: $Uri"
         $Creds = Import-CliXml ~/.timetagger
         $ApiToken = $Creds.Password | ConvertFrom-SecureString -AsPlainText
         $Headers = @{authtoken = $ApiToken }
@@ -35,7 +35,7 @@ class TimeTaggerWrapper {
     
         if ($null -ne $Body) {
             $Params.Body = $Body | ConvertTo-Json -Compress -AsArray
-            Write-Verbose "Body: $Params.Body" -Verbose
+            Write-Verbose "Body: $Params.Body"
         }
     
         $Response = Invoke-WebRequest @Params
@@ -51,7 +51,7 @@ class TimeTaggerWrapper {
             timerange = "$($FromUnixEpoch)-$ToUnixEpoch"
         }
     
-        Write-Verbose "$($From.ToString('s')) ($FromUnixEpoch) -> $($To.ToString('s')) ($ToUnixEpoch)" -Verbose
+        Write-Verbose "$($From.ToString('s')) ($FromUnixEpoch) -> $($To.ToString('s')) ($ToUnixEpoch)"
 
         $Response = $this.InvokeEndPoint('records', 'GET', $QueryParams, $null)
         $Ret = @()

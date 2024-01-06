@@ -42,7 +42,7 @@ function Add-Activity {
     $TagString = ($Tags + $Description) -join ' '
     $Activity = [Activity]::new($StartedAt, $EndedAt, $TagString)
     
-    Write-Verbose "Adding Activity: $TagString " -Verbose
+    Write-Verbose "Adding Activity: $TagString "
 
     return $script:TimeTaggerWrapper.PutRecords($Activity)
 }
@@ -241,7 +241,7 @@ function Start-Activity {
     $TagString = ($Tags + $Description) -join ' '
     $Activity = [Activity]::new($StartedAt, $TagString)
     
-    Write-Verbose "Starting Activity: $TagString " -Verbose
+    Write-Verbose "Starting Activity: $TagString "
 
     return $script:TimeTaggerWrapper.PutActivity($Activity)
 }
