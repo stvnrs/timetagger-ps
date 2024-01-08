@@ -3,8 +3,9 @@ using module ./classes/activity.psm1
 using module ./classes/timetagger.psm1
 
 $ErrorActionPreference = 'Stop'
-
 $script:TimeTaggerWrapper = [TimeTaggerWrapper]::new()
+[ValidateSet('Pre', 'Post')]
+$Script:TagPosition = 'Pre'
 
 # get the date time truncated to seconds
 function GetDate {
@@ -12,6 +13,22 @@ function GetDate {
     $Now = $Now.AddTicks( - ($Now.Ticks % [timespan]::TicksPerSecond))
     $Now
 }
+
+function GetDescription{
+    param(
+        [string[]]$Tags,
+        [string]$Description,
+        [ValidateSet('Pre', 'Post')]
+        [string]$TagPosition = 'Pre'
+    )
+
+    $Ret = $TagPosition -eq 'Pre' ? 
+        ($Tags + $Description) -join ' ' :
+        (,$Description + $Tags) -join ' '
+       
+    $Ret
+}
+
 function IsValidTag() {
     param (
         [String]$Tag
@@ -29,22 +46,26 @@ function Add-Activity {
         [ValidateScript({ IsValidTag($_) })]
         [string[]]$Tags,
 
+        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName=$true)]
         [string]$Description,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName=$true)]
+        [Alias('From')]
         [datetime]$StartedAt,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName=$true)]
+        [Alias('To')]
+        [ValidateScript({$EndedAt -gt $StartedAt})]
         [datetime]$EndedAt
 
     )
 
-    $TagString = ($Tags + $Description) -join ' '
-    $Activity = [Activity]::new($StartedAt, $EndedAt, $TagString)
+    $Description = GetDescription -Tags $Tags -Description $Description -TagPosition $Script:TagPosition
+    $Activity = [Activity]::new($StartedAt, $EndedAt, $Description)
     
-    Write-Verbose "Adding Activity: $TagString "
+    Write-Verbose "Adding Activity: $Description"
 
-    return $script:TimeTaggerWrapper.PutRecords($Activity)
+    return $script:TimeTaggerWrapper.PutActivity($Activity)
 }
 
 function Get-Activity {
@@ -229,6 +250,7 @@ function Start-Activity {
 
         [string]$Description,
 
+        [Alias('From')]
         [datetime]$StartedAt = (Get-Date).ToUniversalTime(),
 
         [switch]$IgnoreRunning
@@ -238,10 +260,10 @@ function Start-Activity {
         Get-Activity -ActiveOnly -From $StartedAt | Stop-Activity
     }
 
-    $TagString = ($Tags + $Description) -join ' '
-    $Activity = [Activity]::new($StartedAt, $TagString)
+    $Description = GetDescription -Tags $Tags -Description $Description -TagPosition $Script:TagPosition
+    $Activity = [Activity]::new($StartedAt, $Description)
     
-    Write-Verbose "Starting Activity: $TagString "
+    Write-Verbose "Starting Activity: $Description"
 
     return $script:TimeTaggerWrapper.PutActivity($Activity)
 }
