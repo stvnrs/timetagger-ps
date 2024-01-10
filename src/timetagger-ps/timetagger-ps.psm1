@@ -7,6 +7,17 @@ $script:TimeTaggerWrapper = [TimeTaggerWrapper]::new()
 [ValidateSet('Pre', 'Post')]
 $Script:TagPosition = 'Pre'
 
+# settings:
+# - tag postion
+# 
+
+# add ByKey param to appropriate *-Activity adv. functions
+# [Parameter(Mandatory = $true, ParameterSetName = 'ByKey', ValueFromPipeline = $true, Position = 0)]
+# [string]$Key,
+
+# add a WithInsertedActivity param set to split-activity
+# inserts the 2nd activity inside the first
+
 # get the date time truncated to seconds
 function GetDate {
     $Now = Get-Date 
@@ -14,7 +25,7 @@ function GetDate {
     $Now
 }
 
-function GetDescription{
+function GetDescription {
     param(
         [string[]]$Tags,
         [string]$Description,
@@ -24,7 +35,7 @@ function GetDescription{
 
     $Ret = $TagPosition -eq 'Pre' ? 
         ($Tags + $Description) -join ' ' :
-        (,$Description + $Tags) -join ' '
+        (, $Description + $Tags) -join ' '
        
     $Ret
 }
@@ -46,16 +57,16 @@ function Add-Activity {
         [ValidateScript({ IsValidTag($_) })]
         [string[]]$Tags,
 
-        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $true)]
         [string]$Description,
 
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
         [Alias('From')]
         [datetime]$StartedAt,
 
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
         [Alias('To')]
-        [ValidateScript({$EndedAt -gt $StartedAt})]
+        [ValidateScript({ $EndedAt -gt $StartedAt })]
         [datetime]$EndedAt
 
     )
@@ -69,47 +80,82 @@ function Add-Activity {
 }
 
 function Get-Activity {
-    [CmdletBinding(DefaultParameterSetName = 'Default')]
+    [CmdletBinding(DefaultParameterSetName = 'ByDate')]
     param (
-        [Parameter(ParameterSetName = 'Default')]
-        [Parameter(ParameterSetName = 'HiddenOnly')]
-        [Parameter(ParameterSetName = 'ActiveOnly')]
-        [Parameter(ParameterSetName = 'IncludeHidden')]
-        [datetime]$From = (GetDate).Date,
+        [Parameter(ParameterSetName = 'ByDate')]
+        [datetime]$From = (Get-Date).Date,
 
-        [Parameter(ParameterSetName = 'Default')]
-        [Parameter(ParameterSetName = 'HiddenOnly')]
-        [Parameter(ParameterSetName = 'ActiveOnly')]
-        [Parameter(ParameterSetName = 'IncludeHidden')]
-        [datetime]$To = (GetDate).Date.AddDays(1),
+        [Parameter(ParameterSetName = 'ByDate')]
+        [datetime]$To = (Get-Date).Date.AddDays(1),
 
-        [Parameter(ParameterSetName = 'IncludeHidden')]
-        [switch]$IncludeHidden,
+        [Parameter(Mandatory = $true, ParameterSetName = "ByPeriod")]
+        [ValidateSet('Today', 'Yesterday', 'ThisWeek', 'ThisMonth')]
+        [string]$Period,
 
-        [Parameter(ParameterSetName = 'HiddenOnly')]
-        [switch]$HiddenOnly,
-        
-        [Parameter(ParameterSetName = 'ActiveOnly')]
-        [switch]$ActiveOnly
+        [Parameter(ParameterSetName = "ByDate")]
+        [Parameter(ParameterSetName = "ByPeriod")]
+        [ValidateSet('Active', 'Stopped', 'All')]
+        [string]$State = 'Active',
+
+        [Parameter(ParameterSetName = "ByDate")]
+        [Parameter(ParameterSetName = "ByPeriod")]
+        [ValidateSet('Hidden', 'NotHidden', 'All')]
+        [string]$Visibility = 'NotHidden'
     )
+
+    if ($PSCmdlet.ParameterSetName -eq 'ByPeriod') {
+        $Today = (Get-Date).Date 
+
+        switch ($Period) {
+            'Today' { 
+                $From = $Today
+                $To = $From.AddDays(1)
+            }
+            'Yesterday' { 
+                $From = $Today.AddDays(-1)
+                $To = $From.AddDays(1)
+            }
+            'ThisWeek' {
+                # monday is first day of week
+                $From = $Today.AddDays( - ($Today.DayOfWeek - 1))
+                $To = $Today.AddDays(1)
+            }
+            'ThisYear' {
+                # from Jan 01           
+                $From = [datetime]::new((Get-Date).Year, 1, 1)
+                $To = $Today.AddDays(1)
+            }
+            Default {
+                throw "Unknown Period"
+            }
+        }
+    }
 
     $Activities = $script:TimeTaggerWrapper.GetActivities($From, $To)
     $Ret = @()
 
-    $Activities | ForEach-Object {
-        $Activity = $_
+    foreach ($Activity in $Activities) {
         $Include = $true
 
-        switch ($PSCmdlet.ParameterSetName) {
-            'Default' { $Include = !$Activity.IsHidden}
-            'IncludeHidden' {$Include = $true}
-            'ActiveOnly' { $Include = !$Activity.IsHidden -and ($Activity.StartedAt -eq $Activity.EndedAt) }
-            'HiddenOnly' { $Include = $Activity.IsHidden }
+        switch ($State) {
+            'All' { $Include = $true }
+            'Active' { $Include = $Activity.IsActive }
+            'Stopped' { $Include = !$Activity.IsActive }
             Default {
-                throw "Unkwnown ParamaterSetName: $($PSCmdlet.ParameterSetName)"
+                throw "Unexpected state in Get-Activity: $State"
             }
         }
-
+        if ($Include) {
+            switch ($Visibility) {
+                'All' { $Include = $true }
+                'Hidden' { $Include = $Activity.IsHidden }
+                'NotHidden' { $Include = !$Activity.IsHidden }
+                Default {
+                    throw "Unexpected visibility in Get-Activity: $Visibility"
+                }
+            }
+        }
+        
         if ($Include) {
             $Ret += $Activity
         }
@@ -241,6 +287,42 @@ function Show-Activity {
     }
 }
 
+function Split-Activity {
+    param(
+        [Parameter(Mandatory = $true, ParameterSetName = 'ByActivity', ValueFromPipeline = $true, Position = 0)]
+        [Activity]$Activity,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'ByActivity', ValueFromPipelineByPropertyName = $true)]
+        [ValidateScript({ $SplitFrom -gt $Activity.StartedAt })]
+        [datetime]$SplitFrom,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'ByActivity', ValueFromPipelineByPropertyName = $true)]
+        [ValidateScript({ $NewActivityStartedAt -ge $SplitFrom })]
+        [datetime]$NewActivityStartedAt = $SplitFrom,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'ByActivity', ValueFromPipelineByPropertyName = $true)]
+        [ValidateScript({ $NewActivityEndedAt -gt $NewActivityStartedAt })]
+        [nullable[datetime]]$NewActivityEndedAt
+
+    )
+
+    $Activity.EndedAt = $SplitFrom
+    Set-Activity -Activity $Activity
+
+    $Params = @{
+        Tags        = $Activity.Tags 
+        Description = $Activity.Description
+        StartedAt   = $NewActivityStartedAt
+    }
+        
+    if ($null -eq $NewActivityEndedAt) {
+        Start-Activity @Params 
+    }
+    else {
+        Add-Activity @Params -EndedAt $NewActivityEndedAt
+    }
+}
+
 function Start-Activity {
     [CmdletBinding()]
     param (
@@ -257,7 +339,7 @@ function Start-Activity {
     )
 
     if (!$IgnoreRunning.IsPresent) {
-        Get-Activity -ActiveOnly -From $StartedAt | Stop-Activity
+        Get-Activity -State 'Active' -From $StartedAt | Stop-Activity
     }
 
     $Description = GetDescription -Tags $Tags -Description $Description -TagPosition $Script:TagPosition

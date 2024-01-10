@@ -65,7 +65,7 @@ class TimeTaggerWrapper {
     }
 
     [void] PutActivity ([Activity]$Activity) {
-        $Activity.ModifiedAt = Get-Date -UFormat '%s'
+        $Activity.ModifiedAt = Get-Date
         $Response = $this.InvokeEndPoint('records', 'PUT', @{}, $Activity.ToHashTable())
 
         $Status = $Response.Content | ConvertFrom-Json 
