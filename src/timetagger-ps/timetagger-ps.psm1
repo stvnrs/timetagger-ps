@@ -7,17 +7,6 @@ $script:TimeTaggerWrapper = [TimeTaggerWrapper]::new()
 [ValidateSet('Pre', 'Post')]
 $Script:TagPosition = 'Pre'
 
-# settings:
-# - tag postion
-# 
-
-# add ByKey param to appropriate *-Activity adv. functions
-# [Parameter(Mandatory = $true, ParameterSetName = 'ByKey', ValueFromPipeline = $true, Position = 0)]
-# [string]$Key,
-
-# add a WithInsertedActivity param set to split-activity
-# inserts the 2nd activity inside the first
-
 # get the date time truncated to seconds
 function GetDate {
     $Now = Get-Date 
