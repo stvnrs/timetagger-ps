@@ -43,7 +43,9 @@ function Add-Activity {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [ValidateScript({ IsValidTag($_) })]
+        [ValidateScript({ 
+            IsValidTag($_) 
+        })]
         [string[]]$Tags,
 
         [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName = $true)]
@@ -55,7 +57,9 @@ function Add-Activity {
 
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
         [Alias('To')]
-        [ValidateScript({ $EndedAt -gt $StartedAt })]
+        [ValidateScript({ 
+            $_ -gt $StartedAt
+         })]
         [datetime]$EndedAt
 
     )
